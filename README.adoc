@@ -90,7 +90,14 @@ Execute a test command now:
 # this needs to be run just once to get the "ELASTIC_PASSWORD" variable, unless the file gets updated later.
 source .env
 
-curl -s --cacert ./elastic-ca.crt -u elastic:${ELASTIC_PASSWORD} -X GET -H "Content-Type: application/json" https://localhost:9200/_cluster/health | jq
+curl \
+  --cacert ./elastic-ca.crt \
+  -X GET \
+  -s \
+  -u "elastic:${ELASTIC_PASSWORD}" \
+  -H "Content-Type: application/json" \
+  https://localhost:9200/_cluster/health \
+  | jq .
 --
 
 You should see something like this:
