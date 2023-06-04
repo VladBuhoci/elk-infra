@@ -1,0 +1,57 @@
+= ELK cluster for dev/learning
+
+:toc:
+
+== What is it?
+
+A set of configuration files which simplify the creation and setting up of a cluster with Elasticsearch nodes and Kibana (Logstash hopefully coming soon).
+
+== How to use it?
+
+=== Prerequisites
+
+You will need Docker and Compose to be able to spin up the ELK cluster.
+
+=== Configure the cluster
+
+Edit the files for your own needs.
+
+In case you want one more ES node, adding it is fairly easy: ::
+- add another service in the Compose file (copy & paste one of the existing ES config blocks);
+- update the "environment" variables for the new node as well as the "cluster.initial_master_nodes" and "discovery.seed_hosts" variables for every ES instance;
+- add new volumes for the new ES node and use them in the "volumes" section;
+- update Kibana's "ELASTICSEARCH_HOSTS" env variable by appending the new ES service and its unique(!) port (which should be added in the .env file).
+
+=== Run Compose
+
+Simply run the following command to start the instances:
+[source,bash]
+--
+docker compose up
+--
+
+Note that running it this way will attach your terminal to the processes and you will be able to view their logs in real time. Also, hitting Ctrl+C will terminate them.
+
+To not have your terminal attached to the container processes, start them in detached mode:
+[source,bash]
+--
+docker compose up -d
+--
+
+Logs can be viewed with the following command (add "-f" for real time logs):
+[source,bash]
+--
+docker compose logs [name of service]
+--
+
+To stop the instances, run:
+[source,bash]
+--
+docker compose down
+--
+
+[IMPORTANT]
+====
+Note that volumes will not be automatically removed, in order to not lose data. You need to manally remove them if you no longer have any use for the stored data.
+====
+
