@@ -1,10 +1,17 @@
 = ELK cluster for dev/learning
 
-:toc:
+:toc: macro
+:toc-placement: preamble
+:toclevels: 1
+:showtitle:
+
+toc::[]
 
 == What is it?
 
 A set of configuration files which simplify the creation and setting up of a cluster with Elasticsearch nodes and Kibana (Logstash hopefully coming soon).
+
+User authentication and TLS are both enabled by default, although this can be changed before starting the cluster.
 
 == How to use it?
 
@@ -16,13 +23,19 @@ You will need Docker and Compose to be able to spin up the ELK cluster.
 
 Edit the files for your own needs.
 
-In case you want one more ES node, adding it is fairly easy: ::
-- add another service in the Compose file (copy & paste one of the existing ES config blocks);
-- update the "environment" variables for the new node as well as the "cluster.initial_master_nodes" and "discovery.seed_hosts" variables for every ES instance;
-- add new volumes for the new ES node and use them in the "volumes" section;
-- update Kibana's "ELASTICSEARCH_HOSTS" env variable by appending the new ES service and its unique(!) port (which should be added in the .env file).
+[IMPORTANT]
+====
+Even though there are 2 user passwords in the .env file ("elastic" and "kibana_system"), only "elastic" is meant to be used by humans (to talk to Elasticsearch or to log into Kibana).
+====
 
-=== Run Compose
+.In case you want one more ES node, adding it is fairly easy:
+* add another service in the Compose file (copy & paste one of the existing ES config blocks);
+* change the list of instances (config/certs/instances.yml in the Compose file) to also contain the new ES node;
+* update the "environment" variables for the new node as well as the "cluster.initial_master_nodes" and "discovery.seed_hosts" env variables for every ES instance;
+* add a new volume for the new ES node and use it in the "volumes" section of its config block;
+* update Kibana's "ELASTICSEARCH_HOSTS" env variable by appending the new ES service and its unique(!) port (which should be added in the .env file).
+
+=== Start the cluster
 
 Simply run the following command to start the instances:
 [source,bash]
@@ -38,10 +51,16 @@ To not have your terminal attached to the container processes, start them in det
 docker compose up -d
 --
 
-Logs can be viewed with the following command (add "-f" for real time logs):
+To check the status of your containers, execute this:
 [source,bash]
 --
-docker compose logs [name of service]
+docker compose ps
+--
+
+Logs can be viewed with the following command (add "-f" for real time logs and, optionally, specify one service, i.e., "kibana"):
+[source,bash]
+--
+docker compose logs [-f] [name of service]
 --
 
 To stop the instances, run:
@@ -50,8 +69,61 @@ To stop the instances, run:
 docker compose down
 --
 
-[IMPORTANT]
+[NOTE]
 ====
-Note that volumes will not be automatically removed, in order to not lose data. You need to manally remove them if you no longer have any use for the stored data.
+Volumes will not be automatically removed, in order to not lose data. You need to manally remove them if you no longer have any use for the stored data.
 ====
+
+=== Access Elasticsearch
+
+TLS is enabled by default, so if it is left unchanged, you will require a CA certificate to talk to the ES nodes.
+
+Get the cert using this command:
+[source,bash]
+--
+docker compose cp elastic-01:/usr/share/elasticsearch/config/certs/ca/ca.crt ./elastic-ca.crt
+--
+
+Execute a test command now:
+[source,bash]
+--
+# this needs to be run just once to get the "ELASTIC_PASSWORD" variable, unless the file gets updated later.
+source .env
+
+curl -s --cacert ./elastic-ca.crt -u elastic:${ELASTIC_PASSWORD} -X GET -H "Content-Type: application/json" https://localhost:9200/_cluster/health | jq
+--
+
+You should see something like this:
+[source,json]
+--
+{
+  "cluster_name": "docker-cluster",
+  "status": "green",
+  "timed_out": false,
+  "number_of_nodes": 2,
+  "number_of_data_nodes": 2,
+  "active_primary_shards": 24,
+  "active_shards": 48,
+  "relocating_shards": 0,
+  "initializing_shards": 0,
+  "unassigned_shards": 0,
+  "delayed_unassigned_shards": 0,
+  "number_of_pending_tasks": 0,
+  "number_of_in_flight_fetch": 0,
+  "task_max_waiting_in_queue_millis": 0,
+  "active_shards_percent_as_number": 100
+}
+--
+
+=== Access Kibana
+
+After every container process had been stabilised, Kibana becomes available at http://localhost:5601 by default (the port can be changed in the .env file).
+
+Log in with "elastic" user and your chosen password (also specified in the .env file).
+
+=== What now?
+
+If everything went well up to this point, then congrats! Feel free to change the cluster to suit your needs.
+
+*_Happy learning!_*
 
