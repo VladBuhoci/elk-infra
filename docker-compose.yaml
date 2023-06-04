@@ -75,9 +75,6 @@ services:
       retries: 120
 
   elastic-01:
-#   depends_on:
-#     - setup
-#       condition: service_healthy
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION}
     ports:
       - ${ELASTIC_PORT_01}:9200
@@ -85,8 +82,8 @@ services:
 #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - node.name=elastic-01
       - cluster.name=${CLUSTER_NAME}
-      - cluster.initial_master_nodes=elastic-01,elastic-02
-      - discovery.seed_hosts=elastic-02
+      - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
+      - discovery.seed_hosts=elastic-02,elastic-03
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - bootstrap.memory_lock=true
       - xpack.security.enabled=true
@@ -128,8 +125,8 @@ services:
 #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - node.name=elastic-02
       - cluster.name=${CLUSTER_NAME}
-      - cluster.initial_master_nodes=elastic-01,elastic-02
-      - discovery.seed_hosts=elastic-01
+      - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
+      - discovery.seed_hosts=elastic-01,elastic-03
       - bootstrap.memory_lock=true
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
@@ -160,18 +157,62 @@ services:
         soft: -1
         hard: -1
 
+  elastic-03:
+    depends_on:
+      - elastic-02
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION}
+    ports:
+      - ${ELASTIC_PORT_03}:9200
+    environment:
+#     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - node.name=elastic-03
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
+      - discovery.seed_hosts=elastic-01,elastic-02
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/elastic-03/elastic-03.key
+      - xpack.security.http.ssl.certificate=certs/elastic-03/elastic-03.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/elastic-03/elastic-03.key
+      - xpack.security.transport.ssl.certificate=certs/elastic-03/elastic-03.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=${LICENSE}
+    volumes:
+      - certificates:/usr/share/elasticsearch/config/certs
+      - elastic-data-03:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u \"elastic:${ELASTIC_PASSWORD}\" https://localhost:9200",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
   kibana:
     depends_on:
       elastic-01:
        condition: service_healthy
       elastic-02:
        condition: service_healthy
+      elastic-03:
+       condition: service_healthy
     image: docker.elastic.co/kibana/kibana:${ELK_VERSION}
     ports:
       - ${KIBANA_PORT}:5601
     environment:
       - SERVERNAME=kibana
-      - ELASTICSEARCH_HOSTS=["https://elastic-01:${ELASTIC_PORT_01}","https://elastic-02:${ELASTIC_PORT_02}"]
+      - ELASTICSEARCH_HOSTS=["https://elastic-01:${ELASTIC_PORT_01}","https://elastic-02:${ELASTIC_PORT_02}","https://elastic-03:${ELASTIC_PORT_03}"]
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
       - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
@@ -194,6 +235,8 @@ volumes:
   elastic-data-01:
     driver: local
   elastic-data-02:
+    driver: local
+  elastic-data-03:
     driver: local
   kibana-data:
     driver: local
