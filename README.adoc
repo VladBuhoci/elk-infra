@@ -63,6 +63,17 @@ Logs can be viewed with the following command (add "-f" for real time logs and, 
 docker compose logs [-f] [name of service]
 --
 
+[NOTE]
+====
+You may encounter an error message in the Elasticsearch logs after starting the cluster, which will cause the processes to exit:
+
+"max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]"
+
+In this case, please run _init.sh_ from this project and try starting the cluster again.
+
+(thanks to https://github.com/justincormack/nsenter1 & https://stackoverflow.com/questions/51445846/elasticsearch-max-virtual-memory-areas-vm-max-map-count-65530-is-too-low-inc)
+====
+
 To stop the instances, run:
 [source,bash]
 --
