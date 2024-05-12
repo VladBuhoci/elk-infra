@@ -1,0 +1,3 @@
+* Compose file was initially based on https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html and then gradually increased in size and complexity.
+* The Logstash pipelines were written while following a particular course: https://www.udemy.com/course/processing-events-with-logstash/
+* The sample data that resides in "/test-data/" folder was based on: https://github.com/codingexplained/data-processing-with-logstash/tree/master/data

@@ -1,0 +1,4 @@
+- pipeline.id: http-apache
+  path.config: "/usr/share/logstash/pipeline/http-apache"
+- pipeline.id: http-json-only
+  path.config: "/usr/share/logstash/pipeline/http-json-only"

@@ -3,8 +3,10 @@ services:
   setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION}
     user: "0"
-    command: >
-      bash -c '
+    entrypoint:
+      - bash
+      - -c
+      - |
         echo "Running script as user \"$(whoami)\"."
 
         if [ x${ELASTIC_PASSWORD} == x ]; then
@@ -53,25 +55,20 @@ services:
         chown -R 1000:root config/certs
         find . -type d -exec chmod 750 \{\} \;;
         find . -type f -exec chmod 640 \{\} \;;
-        
+
         echo "Waiting for Elasticsearch availability"
         until curl -s --cacert config/certs/ca/ca.crt https://elastic-01:${ELASTIC_PORT_01} | grep -q "missing authentication credentials"; do sleep 30; done
-        
+
         echo "Setting kibana_system password"
         until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://elastic-01:${ELASTIC_PORT_01}/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do
           sleep 10
         done
-        
+
         echo "All done!"
-      '
     volumes:
       - certificates:/usr/share/elasticsearch/config/certs
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          " -f config/certs/ca/ca.crt"
-        ]
+      test: ["CMD-SHELL", " -f config/certs/ca/ca.crt"]
       interval: 1s
       timeout: 5s
       retries: 120
@@ -81,7 +78,7 @@ services:
     ports:
       - ${ELASTIC_PORT_01}:9200
     environment:
-#     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - node.name=elastic-01
       - cluster.name=${CLUSTER_NAME}
       - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
@@ -106,7 +103,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u \"elastic:${ELASTIC_PASSWORD}\" https://localhost:9200",
+          'curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://localhost:9200',
         ]
       interval: 10s
       timeout: 10s
@@ -124,7 +121,7 @@ services:
     ports:
       - ${ELASTIC_PORT_02}:9200
     environment:
-#     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - node.name=elastic-02
       - cluster.name=${CLUSTER_NAME}
       - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
@@ -148,7 +145,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u \"elastic:${ELASTIC_PASSWORD}\" https://localhost:9200",
+          'curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://localhost:9200',
         ]
       interval: 10s
       timeout: 10s
@@ -166,7 +163,7 @@ services:
     ports:
       - ${ELASTIC_PORT_03}:9200
     environment:
-#     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - node.name=elastic-03
       - cluster.name=${CLUSTER_NAME}
       - cluster.initial_master_nodes=elastic-01,elastic-02,elastic-03
@@ -190,7 +187,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u \"elastic:${ELASTIC_PASSWORD}\" https://localhost:9200",
+          'curl -s --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" https://localhost:9200',
         ]
       interval: 10s
       timeout: 10s
@@ -201,6 +198,32 @@ services:
         soft: -1
         hard: -1
 
+  logstash:
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+      elastic-01:
+        condition: service_healthy
+      elastic-02:
+        condition: service_healthy
+      elastic-03:
+        condition: service_healthy
+    image: docker.elastic.co/logstash/logstash:${ELK_VERSION}
+    ports:
+      - 1700:1700 # pipeline #1 port
+      - 1701:1701 # pipeline #2 port
+      - 9600:9600 # exposes the metrics REST endpoint.
+    volumes:
+      - certificates:/usr/share/logstash/config/certs
+      - ${CWD_NO_MNT}/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ${CWD_NO_MNT}/logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+      - ${CWD_NO_MNT}/logstash/pipeline/:/usr/share/logstash/pipeline/
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -s http://localhost:9600/?pretty=true | grep -q ''"status" : "green"''']
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
   kibana:
     depends_on:
       setup:
@@ -210,6 +233,8 @@ services:
       elastic-02:
         condition: service_healthy
       elastic-03:
+        condition: service_healthy
+      logstash:
         condition: service_healthy
     image: docker.elastic.co/kibana/kibana:${ELK_VERSION}
     ports:
@@ -224,11 +249,7 @@ services:
       - certificates:/usr/share/kibana/config/certs
       - kibana-data:/usr/share/kibana/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
-        ]
+      test: ["CMD-SHELL", "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'"]
       interval: 10s
       timeout: 10s
       retries: 120
