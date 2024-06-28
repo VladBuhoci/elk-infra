@@ -212,6 +212,7 @@ services:
     ports:
       - 1700:1700 # pipeline #1 port
       - 1701:1701 # pipeline #2 port
+      - 1702:1702 # pipeline #3 port
       - 9600:9600 # exposes the metrics REST endpoint.
     volumes:
       - certificates:/usr/share/logstash/config/certs
